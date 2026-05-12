@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>박진규 | 게시글 CUD 핵심 구현</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0e1117;
+  --surface: #161b22;
+  --surface2: #1c2230;
+  --border: #2a3040;
+  --text: #e2e8f0;
+  --muted: #6b7888;
+  --green: #3fb950;
+  --blue: #58a6ff;
+  --orange: #f0883e;
+  --purple: #bc8cff;
+  --red: #ff7b72;
+  --yellow: #e3b341;
+  --teal: #39d0cc;
+}
+
+body {
+  background: var(--bg);
+  font-family: 'Noto Sans KR', sans-serif;
+  color: var(--text);
+  padding: 40px 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.page { width: 860px; max-width: 100%; }
+
+/* ── Section divider ── */
+.section-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 28px 0 16px;
+  opacity: 0; animation: up .5s ease forwards;
+}
+.section-divider-label {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: var(--muted); white-space: nowrap;
+}
+.section-divider-line {
+  flex: 1; height: 1px; background: var(--border);
+}
+
+/* ── Header ── */
+.pr-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding-bottom: 20px; border-bottom: 1px solid var(--border);
+  margin-bottom: 28px;
+  opacity: 0; animation: up .5s ease forwards;
+}
+.pr-meta { display: flex; flex-direction: column; gap: 6px; }
+.pr-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--orange);
+  background: rgba(240,136,62,.1); border: 1px solid rgba(240,136,62,.3);
+  padding: 3px 10px; border-radius: 20px; width: fit-content;
+}
+.pr-tag::before { content: '◉'; font-size: 8px; }
+.pr-title { font-size: 26px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+.pr-title span { color: var(--orange); }
+.pr-author { font-size: 12px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+.pr-author strong { color: var(--text); font-weight: 600; }
+.pr-stats { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.stat-row { display: flex; gap: 8px; }
+.stat-chip {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border); color: var(--muted);
+}
+.stat-chip.g { color: var(--green); border-color: rgba(63,185,80,.35); background: rgba(63,185,80,.07); }
+.stat-chip.r { color: var(--red); border-color: rgba(255,123,114,.35); background: rgba(255,123,114,.07); }
+
+/* ── Grid ── */
+.grid { display: grid; gap: 12px; margin-bottom: 12px; }
+.grid.two   { grid-template-columns: 1fr 1fr; }
+.grid.three { grid-template-columns: 1fr 1fr 1fr; }
+.grid.full  { grid-template-columns: 1fr; }
+.grid.w13   { grid-template-columns: 1fr 1.6fr; }
+
+/* ── Card ── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden;
+  opacity: 0;
+}
+.card:nth-child(1) { animation: up .5s .1s ease forwards; }
+.card:nth-child(2) { animation: up .5s .18s ease forwards; }
+.card:nth-child(3) { animation: up .5s .26s ease forwards; }
+.card:nth-child(4) { animation: up .5s .34s ease forwards; }
+.card:nth-child(5) { animation: up .5s .42s ease forwards; }
+
+.card.highlight {
+  border-color: var(--orange);
+  background: linear-gradient(135deg, #1e1a14 0%, #1c2230 100%);
+}
+.card.trouble {
+  border-color: rgba(255,123,114,.4);
+  background: linear-gradient(135deg, #1e1417 0%, #1c2230 100%);
+}
+.card.retro {
+  border-color: rgba(57,208,204,.4);
+  background: linear-gradient(135deg, #141e1e 0%, #1c2230 100%);
+}
+.card.todo {
+  border-color: rgba(88,166,255,.4);
+  background: linear-gradient(135deg, #141820 0%, #1c2230 100%);
+}
+
+.card-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px 12px; border-bottom: 1px solid var(--border);
+}
+.card-icon {
+  width: 28px; height: 28px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.card-header-text { display: flex; flex-direction: column; gap: 1px; }
+.card-section { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .15em; text-transform: uppercase; color: var(--muted); }
+.card-name { font-size: 13px; font-weight: 700; line-height: 1.2; }
+.card-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+/* ── Why box ── */
+.why-box {
+  background: rgba(240,136,62,.07); border: 1px solid rgba(240,136,62,.2);
+  border-radius: 6px; padding: 9px 12px;
+  display: flex; gap: 8px; align-items: flex-start;
+}
+.why-label {
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700;
+  color: var(--orange); background: rgba(240,136,62,.15); border: 1px solid rgba(240,136,62,.3);
+  padding: 1px 6px; border-radius: 3px; flex-shrink: 0; margin-top: 1px;
+  letter-spacing: .05em;
+}
+.why-text { font-size: 11.5px; color: var(--muted); line-height: 1.55; }
+.why-text strong { color: var(--text); }
+
+/* ── Code block ── */
+.code-block {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 10px 14px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.code-line { font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.55; }
+.kw  { color: var(--purple); }
+.fn  { color: var(--blue); }
+.arg { color: var(--orange); }
+.str { color: var(--green); }
+.cm  { color: var(--muted); font-style: italic; }
+.op  { color: var(--teal); }
+.re  { color: var(--yellow); }
+
+/* ── Detail row ── */
+.detail-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 10px; background: var(--bg); border-radius: 6px;
+  border-left: 2px solid var(--border);
+}
+.detail-row.green  { border-left-color: var(--green); }
+.detail-row.blue   { border-left-color: var(--blue); }
+.detail-row.orange { border-left-color: var(--orange); }
+.detail-row.purple { border-left-color: var(--purple); }
+.detail-row.red    { border-left-color: var(--red); }
+.detail-row.teal   { border-left-color: var(--teal); }
+.detail-row.yellow { border-left-color: var(--yellow); }
+.detail-key {
+  font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-weight: 600;
+  white-space: nowrap; min-width: 150px; flex-shrink: 0;
+}
+.detail-val { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+
+/* ── Regex table ── */
+.regex-table { display: flex; flex-direction: column; gap: 6px; }
+.regex-row {
+  background: var(--bg); border-radius: 6px; border: 1px solid var(--border);
+  padding: 10px 12px; display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center;
+}
+.regex-row:hover { border-color: var(--yellow); }
+.regex-name {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  color: var(--yellow); font-weight: 700; white-space: nowrap;
+}
+.regex-role { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+.regex-role strong { color: var(--text); font-weight: 500; }
+.regex-arrow {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+  padding: 7px 12px; background: rgba(63,185,80,.06);
+  border: 1px solid rgba(63,185,80,.2); border-radius: 6px;
+}
+.regex-arrow-icon { color: var(--green); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+.regex-arrow-text { font-size: 12px; color: var(--muted); }
+.regex-arrow-text strong { color: var(--green); }
+
+/* ── Sync flow ── */
+.sync-flow { display: flex; flex-direction: column; gap: 8px; }
+.sync-row { display: flex; align-items: center; gap: 8px; }
+.sync-badge {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+  padding: 3px 9px; border-radius: 4px; flex-shrink: 0; width: 52px; text-align: center;
+}
+.sync-badge.add { background: rgba(63,185,80,.15); color: var(--green); border: 1px solid rgba(63,185,80,.3); }
+.sync-badge.del { background: rgba(255,123,114,.15); color: var(--red); border: 1px solid rgba(255,123,114,.3); }
+.sync-line { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.sync-line strong { color: var(--text); font-weight: 500; }
+
+/* ── Delete order ── */
+.order-flow { display: flex; align-items: center; gap: 0; }
+.order-step {
+  flex: 1; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 12px 10px; text-align: center;
+}
+.order-step .step-num {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  color: var(--muted); margin-bottom: 4px;
+}
+.order-step .step-name { font-size: 12px; font-weight: 700; line-height: 1.3; }
+.order-step .step-note { font-size: 10.5px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+.order-arrow { color: var(--red); font-size: 18px; padding: 0 6px; flex-shrink: 0; }
+.order-step.s3  { border-color: rgba(255,123,114,.4); }
+.order-step.s3 .step-name { color: var(--red); }
+.order-step.db  { border-color: rgba(88,166,255,.4); }
+.order-step.db .step-name { color: var(--blue); }
+.order-step.ok  { border-color: rgba(63,185,80,.4); }
+.order-step.ok .step-name { color: var(--green); }
+
+/* ── Presigned ── */
+.presigned-flow { display: flex; align-items: center; gap: 0; margin-bottom: 10px; }
+.pf-step {
+  flex: 1; text-align: center; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px; padding: 10px 8px;
+}
+.pf-step .pf-label { font-size: 10.5px; color: var(--muted); margin-bottom: 3px; }
+.pf-step .pf-val   { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; }
+.pf-step.expire .pf-val  { color: var(--red); }
+.pf-step.trigger .pf-val { color: var(--orange); }
+.pf-step.fresh .pf-val   { color: var(--green); }
+.pf-arrow { color: var(--border); font-size: 16px; padding: 0 5px; flex-shrink: 0; padding-bottom: 12px; }
+
+/* ── Highlight card ── */
+.highlight-title {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  letter-spacing: .15em; text-transform: uppercase;
+  color: var(--orange); margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.highlight-title::before { content: '★'; }
+.pattern-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pattern-item {
+  background: var(--bg); border-radius: 6px;
+  padding: 12px 14px; border: 1px solid var(--border);
+}
+.pattern-item-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.badge {
+  font-family: 'JetBrains Mono', monospace; font-size: 9px;
+  padding: 2px 7px; border-radius: 3px; font-weight: 700; letter-spacing: .05em;
+}
+.badge.yellow { background: rgba(227,179,65,.2); color: var(--yellow); border: 1px solid rgba(227,179,65,.3); }
+.badge.red    { background: rgba(255,123,114,.2); color: var(--red);    border: 1px solid rgba(255,123,114,.3); }
+.badge.teal   { background: rgba(57,208,204,.2);  color: var(--teal);   border: 1px solid rgba(57,208,204,.3); }
+.badge.blue   { background: rgba(88,166,255,.2);  color: var(--blue);   border: 1px solid rgba(88,166,255,.3); }
+.badge.purple { background: rgba(188,140,255,.2); color: var(--purple); border: 1px solid rgba(188,140,255,.3); }
+.pattern-item-title { font-size: 12px; font-weight: 700; }
+.pattern-item-desc  { font-size: 11.5px; color: var(--muted); line-height: 1.65; }
+
+/* ── Trouble shooting ── */
+.trouble-row {
+  background: var(--bg); border-radius: 6px; border: 1px solid var(--border);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
+}
+.trouble-row:hover { border-color: var(--red); }
+.trouble-phase {
+  display: flex; align-items: center; gap: 8px;
+}
+.phase-badge {
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700;
+  padding: 2px 8px; border-radius: 3px; letter-spacing: .05em; flex-shrink: 0;
+}
+.phase-badge.issue   { background: rgba(255,123,114,.15); color: var(--red);    border: 1px solid rgba(255,123,114,.3); }
+.phase-badge.cause   { background: rgba(227,179,65,.15);  color: var(--yellow); border: 1px solid rgba(227,179,65,.3); }
+.phase-badge.fix     { background: rgba(63,185,80,.15);   color: var(--green);  border: 1px solid rgba(63,185,80,.3); }
+.phase-badge.result  { background: rgba(88,166,255,.15);  color: var(--blue);   border: 1px solid rgba(88,166,255,.3); }
+.phase-text { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.phase-text strong { color: var(--text); font-weight: 500; }
+
+/* ── Retro / todo ── */
+.retro-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.retro-item {
+  background: var(--bg); border-radius: 6px;
+  padding: 12px 14px; border: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.retro-item-head { display: flex; align-items: center; gap: 6px; }
+.retro-item-title { font-size: 12px; font-weight: 700; }
+.retro-item-desc  { font-size: 11.5px; color: var(--muted); line-height: 1.65; }
+.retro-item-desc strong { color: var(--text); font-weight: 500; }
+
+.todo-list { display: flex; flex-direction: column; gap: 7px; }
+.todo-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--bg); border-radius: 6px; padding: 10px 12px;
+  border: 1px solid var(--border);
+}
+.todo-num {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+  color: var(--blue); background: rgba(88,166,255,.1); border: 1px solid rgba(88,166,255,.25);
+  padding: 1px 7px; border-radius: 3px; flex-shrink: 0; margin-top: 1px;
+}
+.todo-text { font-size: 11.5px; color: var(--muted); line-height: 1.55; }
+.todo-text strong { color: var(--text); font-weight: 500; }
+
+/* ── Footer ── */
+.footer {
+  margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+  opacity: 0; animation: up .5s .85s ease forwards;
+}
+.footer-left { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); }
+.footer-right { display: flex; gap: 16px; }
+.legend { display: flex; align-items: center; gap: 5px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+@keyframes up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="pr-header">
+    <div class="pr-meta">
+      <div class="pr-tag">Portfolio</div>
+      <div class="pr-title">게시글 <span>CUD 핵심 구현</span></div>
+      <div class="pr-author"><strong>박진규</strong> &nbsp;·&nbsp; Post Create / Update / Delete API &nbsp;·&nbsp; community/views/post_detail_view.py</div>
+    </div>
+    <div class="pr-stats">
+      <div class="stat-row">
+        <div class="stat-chip g">+312 lines</div>
+        <div class="stat-chip r">−22 lines</div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-chip">4 regex patterns</div>
+        <div class="stat-chip">S3 sync safe</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 1: 핵심 구현 ── -->
+  <div class="section-divider">
+    <div class="section-divider-label">01 · 핵심 구현</div>
+    <div class="section-divider-line"></div>
+  </div>
+
+  <!-- Row 1: 유효성 + Presigned -->
+  <div class="grid two">
+
+    <!-- 유효성 검증 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:rgba(63,185,80,.12)">✅</div>
+        <div class="card-header-text">
+          <div class="card-section">Validation</div>
+          <div class="card-name" style="color:var(--green)">유효성 검증</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="why-box">
+          <div class="why-label">WHY</div>
+          <div class="why-text">비활성 카테고리에 게시글이 등록되면 사용자에게 노출되지 않는 글이 쌓이는 문제 발생 → <strong>Serializer 단계에서 미리 차단</strong></div>
+        </div>
+        <div class="code-block">
+          <div class="code-line"><span class="kw">def</span> <span class="fn">validate_category</span><span class="op">(</span><span class="arg">self</span><span class="op">, </span><span class="arg">value</span><span class="op">):</span></div>
+          <div class="code-line">&nbsp;&nbsp;<span class="kw">if not</span> <span class="arg">value</span><span class="op">.</span><span class="arg">status</span><span class="op">:</span></div>
+          <div class="code-line">&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">raise</span> <span class="fn">ValidationError</span><span class="op">(</span><span class="str">"비활성 카테고리"</span><span class="op">)</span></div>
+        </div>
+        <div class="detail-row green">
+          <div class="detail-key" style="color:var(--green)">카테고리 상태 검증</div>
+          <div class="detail-val">status=True인 활성 카테고리만 등록·수정 허용</div>
+        </div>
+        <div class="detail-row blue">
+          <div class="detail-key" style="color:var(--blue)">blank 검증</div>
+          <div class="detail-val">제목·내용 공백 포함 유효성 — Serializer 단계에서 처리</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Presigned URL 갱신 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:rgba(88,166,255,.12)">🔗</div>
+        <div class="card-header-text">
+          <div class="card-section">Presigned URL Refresh</div>
+          <div class="card-name" style="color:var(--blue)">Presigned URL 갱신</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="why-box">
+          <div class="why-label">WHY</div>
+          <div class="why-text">S3 Presigned URL은 유효 기간이 있어, 게시글 수정 없이 시간이 지나면 이미지·첨부파일 링크가 <strong>만료되어 프론트에서 404 발생</strong> → 수정 요청마다 자동 재발급</div>
+        </div>
+        <div class="presigned-flow">
+          <div class="pf-step expire">
+            <div class="pf-label">기존 URL</div>
+            <div class="pf-val">만료됨</div>
+          </div>
+          <div class="pf-arrow">→</div>
+          <div class="pf-step trigger">
+            <div class="pf-label">수정 시</div>
+            <div class="pf-val">자동 트리거</div>
+          </div>
+          <div class="pf-arrow">→</div>
+          <div class="pf-step fresh">
+            <div class="pf-label">새 URL</div>
+            <div class="pf-val">재발급</div>
+          </div>
+        </div>
+        <div class="detail-row blue">
+          <div class="detail-key" style="color:var(--blue)">자동 재발급</div>
+          <div class="detail-val">수정 요청마다 만료된 S3 Presigned URL을 자동 갱신</div>
+        </div>
+        <div class="detail-row teal">
+          <div class="detail-key" style="color:var(--teal)">항상 최신 상태</div>
+          <div class="detail-val">응답에 포함된 이미지·첨부파일 URL 유효성 항상 보장</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: 정규식 4종 (full) -->
+  <div class="grid full">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:rgba(227,179,65,.12)">🔣</div>
+        <div class="card-header-text">
+          <div class="card-section">Markdown Parsing · Regex Design</div>
+          <div class="card-name" style="color:var(--yellow)">마크다운 파싱 — 정규식 4종 역할별 분리</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="why-box">
+          <div class="why-label">WHY</div>
+          <div class="why-text">하나의 범용 정규식으로 이미지·첨부파일을 모두 처리하면 패턴 변경 시 의도치 않은 오작동 발생 가능 → <strong>추출→정제→분기 단계별로 정규식 책임을 분리</strong>해 각 패턴 변경 시 영향 범위 최소화</div>
+        </div>
+        <div class="regex-table">
+          <div class="regex-row">
+            <div class="regex-name">RE_MARKDOWN_LINK</div>
+            <div class="regex-role"><strong>마크다운 링크·이미지 전체 추출</strong> — <code style="font-family:JetBrains Mono;font-size:10px;color:var(--yellow)">![alt](url)</code> 및 <code style="font-family:JetBrains Mono;font-size:10px;color:var(--yellow)">[text](url)</code> 패턴 일괄 매칭</div>
+          </div>
+          <div class="regex-row">
+            <div class="regex-name">RE_FILE_URL_STRIP_QS</div>
+            <div class="regex-role"><strong>URL 쿼리스트링 제거</strong> — Presigned URL의 <code style="font-family:JetBrains Mono;font-size:10px;color:var(--yellow)">?X-Amz-*</code> 파라미터 제거 후 순수 경로만 추출</div>
+          </div>
+          <div class="regex-row">
+            <div class="regex-name">RE_IMAGE_URL</div>
+            <div class="regex-role"><strong>이미지 URL만 필터</strong> — <code style="font-family:JetBrains Mono;font-size:10px;color:var(--yellow)">.jpg / .png / .gif / .webp</code> 등 이미지 확장자 매칭</div>
+          </div>
+          <div class="regex-row">
+            <div class="regex-name">RE_ATTACHMENT_URL</div>
+            <div class="regex-role"><strong>첨부파일 URL만 필터</strong> — <code style="font-family:JetBrains Mono;font-size:10px;color:var(--yellow)">.pdf / .zip / .docx</code> 등 비이미지 파일 분기 처리</div>
+          </div>
+        </div>
+        <div class="regex-arrow">
+          <span class="regex-arrow-icon">↓ 파싱 결과</span>
+          <span class="regex-arrow-text"><strong>PostImage</strong> 테이블 저장 &nbsp;+&nbsp; <strong>PostAttachment</strong> 테이블 저장 — 이미지·첨부파일 별도 관리</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: 파일 동기화 + 게시글 삭제 -->
+  <div class="grid w13">
+
+    <!-- 게시글 삭제 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:rgba(255,123,114,.12)">🗑️</div>
+        <div class="card-header-text">
+          <div class="card-section">Post Delete</div>
+          <div class="card-name" style="color:var(--red)">게시글 삭제</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="why-box">
+          <div class="why-label">WHY</div>
+          <div class="why-text">DB 레코드 삭제 후 S3 삭제 시도 중 실패하면 <strong>S3에 고아 파일이 영구 잔류</strong>해 스토리지 비용 누수 → S3 먼저 정리 후 DB 삭제</div>
+        </div>
+        <div class="order-flow">
+          <div class="order-step s3">
+            <div class="step-num">① FIRST</div>
+            <div class="step-name">S3 파일<br>정리</div>
+            <div class="step-note">실제 스토리지<br>삭제</div>
+          </div>
+          <div class="order-arrow">→</div>
+          <div class="order-step db">
+            <div class="step-num">② THEN</div>
+            <div class="step-name">DB 레코드<br>삭제</div>
+            <div class="step-note">순서 보장</div>
+          </div>
+          <div class="order-arrow">→</div>
+          <div class="order-step ok">
+            <div class="step-num">③ SAFE</div>
+            <div class="step-name">리소스<br>누수 방지</div>
+            <div class="step-note">정합성 확보</div>
+          </div>
+        </div>
+        <div class="detail-row red">
+          <div class="detail-key" style="color:var(--red)">삭제 순서 보장</div>
+          <div class="detail-val">S3 → DB 순서 강제로 고아 파일 생성 원천 차단</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 파일 동기화 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon" style="background:rgba(188,140,255,.12)">🔄</div>
+        <div class="card-header-text">
+          <div class="card-section">File Synchronization</div>
+          <div class="card-name" style="color:var(--purple)">파일 동기화 (file_synchronization)</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="why-box">
+          <div class="why-label">WHY</div>
+          <div class="why-text">게시글 수정 시 본문에서 이미지를 삭제해도 S3·DB에 파일이 그대로 남아 <strong>스토리지 누수 및 DB 불일치</strong> 발생 → 수정마다 본문과 DB를 양방향 비교해 자동 동기화</div>
+        </div>
+        <div class="code-block" style="margin-bottom:4px;">
+          <div class="code-line"><span class="cm"># 수정 시 본문 기준 양방향 동기화</span></div>
+          <div class="code-line"><span class="arg">body_files</span>  <span class="op">=</span> <span class="fn">parse_from_content</span><span class="op">(</span><span class="arg">new_body</span><span class="op">)</span></div>
+          <div class="code-line"><span class="arg">db_files</span>    <span class="op">=</span> <span class="fn">PostFile.objects.filter</span><span class="op">(</span><span class="arg">post</span><span class="op">=</span><span class="arg">post</span><span class="op">)</span></div>
+          <div class="code-line"><span class="arg">to_add</span>     <span class="op">=</span> <span class="arg">body_files</span> <span class="op">-</span> <span class="arg">db_files</span></div>
+          <div class="code-line"><span class="arg">to_delete</span>  <span class="op">=</span> <span class="arg">db_files</span>   <span class="op">-</span> <span class="arg">body_files</span></div>
+        </div>
+        <div class="sync-flow">
+          <div class="sync-row">
+            <div class="sync-badge add">ADD</div>
+            <div class="sync-line">본문에 있지만 DB에 없는 파일 → <strong>자동 등록</strong></div>
+          </div>
+          <div class="sync-row">
+            <div class="sync-badge del">DEL</div>
+            <div class="sync-line">DB에 있지만 본문에서 제거된 파일 → <strong>S3 삭제 → DB 삭제</strong></div>
+          </div>
+        </div>
+        <div class="detail-row purple">
+          <div class="detail-key" style="color:var(--purple)">S3 연쇄 삭제</div>
+          <div class="detail-val">본문 제거 파일 즉시 S3 정리 → 스토리지 누수 방지</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Highlight -->
+  <div class="card highlight" style="margin-top:0; opacity:0; animation: up .5s .5s ease forwards;">
+    <div class="card-body" style="padding: 20px;">
+      <div class="highlight-title">안정성과 유지보수성을 모두 잡은 핵심 패턴</div>
+      <div class="pattern-grid">
+        <div class="pattern-item">
+          <div class="pattern-item-head">
+            <div class="badge yellow">Regex Design</div>
+            <div class="pattern-item-title">정규식 4종 역할별 분리</div>
+          </div>
+          <div class="pattern-item-desc">하나의 범용 정규식 대신 추출→정제→분기 목적별로 4종을 분리해 각 단계 책임을 명확히 구분. 패턴 변경 시 영향 범위가 최소화되어 유지보수성이 극대화됨.</div>
+        </div>
+        <div class="pattern-item">
+          <div class="pattern-item-head">
+            <div class="badge red">Delete Order</div>
+            <div class="pattern-item-title">S3 삭제 → DB 삭제 순서 보장</div>
+          </div>
+          <div class="pattern-item-desc">DB 레코드 삭제 전 S3 파일을 먼저 정리함으로써 고아 파일(orphan file) 발생을 원천 차단. 동기화와 게시글 삭제 양쪽에 일관되게 적용된 안전한 리소스 관리 패턴.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 2: 트러블슈팅 ── -->
+  <div class="section-divider" style="animation-delay:.55s">
+    <div class="section-divider-label">02 · 트러블슈팅</div>
+    <div class="section-divider-line"></div>
+  </div>
+
+  <div class="grid full">
+    <div class="card trouble" style="animation-delay:.6s">
+      <div class="card-header">
+        <div class="card-icon" style="background:rgba(255,123,114,.12)">🐛</div>
+        <div class="card-header-text">
+          <div class="card-section">Trouble Shooting</div>
+          <div class="card-name" style="color:var(--red)">발생한 문제와 해결 과정</div>
+        </div>
+      </div>
+      <div class="card-body" style="gap:12px;">
+
+        <!-- 트러블 1 -->
+        <div class="trouble-row">
+          <div class="trouble-phase">
+            <div class="phase-badge issue">ISSUE</div>
+            <div class="phase-text"><strong>Git rebase 충돌 및 히스토리 꼬임</strong> — PR 정리 중 불필요한 커밋 제거 과정에서 rebase 충돌 발생, 커밋 메시지와 실제 변경 내용 불일치, push 시 non-fast-forward 에러</div>
+          </div>
+          <div class="trouble-phase">
+            <div class="phase-badge cause">CAUSE</div>
+            <div class="phase-text">rebase -i 사용 중 <strong>기준 커밋 설정 오류</strong>로 충돌 해결 과정에서 커밋 단위 정합성이 깨짐</div>
+          </div>
+          <div class="trouble-phase">
+            <div class="phase-badge fix">FIX</div>
+            <div class="phase-text">
+              <code style="font-family:JetBrains Mono;font-size:10px;color:var(--green)">git branch backup/temp</code> 로 백업 후
+              <code style="font-family:JetBrains Mono;font-size:10px;color:var(--green)">rebase -i &lt;base-commit&gt;</code> 재수행,
+              <code style="font-family:JetBrains Mono;font-size:10px;color:var(--green)">--force-with-lease</code> 로 안전하게 push
+            </div>
+          </div>
+          <div class="trouble-phase">
+            <div class="phase-badge result">RESULT</div>
+            <div class="phase-text">PR 범위 외 변경 제거 완료, 커밋 메시지와 코드 내용 정합성 회복 → <strong>코드 리뷰 품질 향상</strong></div>
+          </div>
+        </div>
+
+        <!-- 트러블 2 -->
+        <div class="trouble-row">
+          <div class="trouble-phase">
+            <div class="phase-badge issue">ISSUE</div>
+            <div class="phase-text"><strong>DRF 기본 에러 메시지가 커스텀 validate보다 먼저 실행</strong> — 필수값 누락 시 <code style="font-family:JetBrains Mono;font-size:10px;color:var(--red)">"이 필드는 blank일 수 없습니다."</code> 기본 메시지가 출력되고 custom validate가 무시됨</div>
+          </div>
+          <div class="trouble-phase">
+            <div class="phase-badge cause">CAUSE</div>
+            <div class="phase-text">DRF는 <strong>필드 레벨 validation이 custom validate보다 먼저 실행</strong>되는 구조 — blank/null 기본 검증이 우선순위를 가짐</div>
+          </div>
+          <div class="trouble-phase">
+            <div class="phase-badge fix">FIX</div>
+            <div class="phase-text"><code style="font-family:JetBrains Mono;font-size:10px;color:var(--green)">extra_kwargs</code> 와 <code style="font-family:JetBrains Mono;font-size:10px;color:var(--green)">error_messages</code> 로 필드 단위 메시지를 직접 override — <code style="font-family:JetBrains Mono;font-size:10px;color:var(--green)">"제목은 필수 값입니다."</code> 형태로 커스터마이징</div>
+          </div>
+          <div class="trouble-phase">
+            <div class="phase-badge result">RESULT</div>
+            <div class="phase-text">사용자 친화적인 에러 메시지 제공, validation 흐름 제어 및 <strong>API 응답 품질 개선</strong></div>
+          </div>
+        </div>
+
+        <!-- 트러블 3 -->
+        <div class="trouble-row">
+          <div class="trouble-phase">
+            <div class="phase-badge issue">ISSUE</div>
+            <div class="phase-text"><strong>마크다운 형식에 따라 파일 인식 오류</strong> — 정규식 기반 파일 인식 과정에서 특정 마크다운 형식으로 작성된 URL이 파싱 대상에서 누락되는 케이스 발생</div>
+          </div>
+          <div class="trouble-phase">
+            <div class="phase-badge cause">CAUSE</div>
+            <div class="phase-text">정규식이 표준 마크다운 형식만 커버하도록 설계되어 <strong>변형된 URL 표기 방식</strong>이나 줄바꿈 포함 케이스에서 매칭 실패</div>
+          </div>
+          <div class="trouble-phase">
+            <div class="phase-badge fix">FIX</div>
+            <div class="phase-text">발견된 케이스에 한해 정규식 패턴 보완. 다만 <strong>모든 마크다운 변형 케이스를 사전에 완전히 커버하지 못한 점은 아쉬운 점으로 남음</strong> (개선 방향 아래 참고)</div>
+          </div>
+          <div class="trouble-phase">
+            <div class="phase-badge result">RESULT</div>
+            <div class="phase-text">주요 케이스 해결 완료. 추가 엣지케이스 대응은 <strong>파싱 라이브러리(mistune 등) 도입으로 근본 해결 가능</strong></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 3: 회고 ── -->
+  <div class="section-divider" style="animation-delay:.7s">
+    <div class="section-divider-label">03 · 회고</div>
+    <div class="section-divider-line"></div>
+  </div>
+
+  <div class="grid two">
+
+    <!-- 잘한 점 -->
+    <div class="card retro" style="animation-delay:.75s">
+      <div class="card-header">
+        <div class="card-icon" style="background:rgba(57,208,204,.12)">✨</div>
+        <div class="card-header-text">
+          <div class="card-section">Retrospective · Good</div>
+          <div class="card-name" style="color:var(--teal)">잘한 점</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="retro-grid" style="grid-template-columns:1fr;">
+          <div class="retro-item">
+            <div class="retro-item-head">
+              <div class="badge teal">설계</div>
+              <div class="retro-item-title">정규식 책임 분리</div>
+            </div>
+            <div class="retro-item-desc">단일 정규식 대신 4종으로 단계를 나눠 <strong>각 패턴의 역할을 명확히 구분</strong>한 것이 유지보수성 측면에서 좋은 판단이었음</div>
+          </div>
+          <div class="retro-item">
+            <div class="retro-item-head">
+              <div class="badge teal">안정성</div>
+              <div class="retro-item-title">S3 → DB 삭제 순서 일관 적용</div>
+            </div>
+            <div class="retro-item-desc">파일 동기화와 게시글 삭제 양쪽에 <strong>동일한 삭제 순서를 일관되게 적용</strong>해 고아 파일 문제를 원천 차단</div>
+          </div>
+          <div class="retro-item">
+            <div class="retro-item-head">
+              <div class="badge teal">학습</div>
+              <div class="retro-item-title">비정형 데이터 처리 경험</div>
+            </div>
+            <div class="retro-item-desc">마크다운 본문에서 이미지 키를 추출하고 Presigned URL로 변환하는 <strong>비정형 데이터 파이프라인 설계</strong>를 처음으로 경험</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 아쉬운 점 + 개선 방향 -->
+    <div class="card todo" style="animation-delay:.82s">
+      <div class="card-header">
+        <div class="card-icon" style="background:rgba(88,166,255,.12)">🔧</div>
+        <div class="card-header-text">
+          <div class="card-section">Retrospective · Improve</div>
+          <div class="card-name" style="color:var(--blue)">아쉬운 점 & 개선 방향</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="todo-list">
+          <div class="todo-item">
+            <div class="todo-num">01</div>
+            <div class="todo-text">
+              <strong>S3 파일 삭제 성능 미고려</strong><br>
+              게시글 삭제 시 파일 수가 많아질수록 S3 삭제 요청이 동기적으로 늘어나 응답 지연 발생 가능. → <strong>Celery 비동기 태스크</strong>로 분리해 메인 요청과 파일 삭제를 분리하는 구조로 개선 필요
+            </div>
+          </div>
+          <div class="todo-item">
+            <div class="todo-num">02</div>
+            <div class="todo-text">
+              <strong>마크다운 파싱 엣지케이스 미완</strong><br>
+              정규식 기반 파싱은 표준 마크다운 외 변형 케이스에서 누락 가능. → <strong>mistune, markdown-it 등 파싱 라이브러리</strong> 도입으로 AST 기반 파싱으로 전환해 신뢰성 확보 가능
+            </div>
+          </div>
+          <div class="todo-item">
+            <div class="todo-num">03</div>
+            <div class="todo-text">
+              <strong>초기 설계 충분히 고민하지 못함</strong><br>
+              기능 구현에 집중하다 보니 뷰·서비스·시리얼라이저 역할 분리가 초반에 명확하지 않아 중간에 구조 수정이 반복됨. → <strong>서비스 레이어를 처음부터 분리</strong>하고 인터페이스를 먼저 정의하는 설계 우선 접근 필요
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-left">community/views/post_detail_view.py &nbsp;·&nbsp; PostCreateAPIView · PostUpdateAPIView · PostDeleteAPIView</div>
+    <div class="footer-right">
+      <div class="legend"><div class="legend-dot" style="background:var(--yellow)"></div>Regex</div>
+      <div class="legend"><div class="legend-dot" style="background:var(--purple)"></div>Sync</div>
+      <div class="legend"><div class="legend-dot" style="background:var(--red)"></div>S3</div>
+      <div class="legend"><div class="legend-dot" style="background:var(--green)"></div>Validate</div>
+      <div class="legend"><div class="legend-dot" style="background:var(--teal)"></div>Retro</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
